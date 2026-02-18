@@ -20,13 +20,13 @@ Este proyecto replica la **infraestructura completa de un Managed Service Provid
 ```
 SEDE CENTRAL MSP               TÚNEL VPN CIFRADO              EMPRESA CLIENTE
 (Proxmox "ODIN")              IPsec Site-to-Site            (VMware Workstation)
-┌─────────────────┐                 ⟺                        ┌──────────────────┐
-│ FortiGate Server	│ ◄─────────────────────────────► │ FortiGate Cliente	     │
-│ 192.168.0.102   	│         10.0.1.0/24 ↔ 10.0.2.0/24   	    │ 192.168.0.103    	     │
-│                 	│                                      	    │                  	     │
-│ Zabbix Server   	│ ──── Monitorización remota ────►  	    │ Ubuntu + Agent   	     │
-│ 10.0.1.10       	│         (por VPN cifrada)           	    │ 10.0.2.100       	     │
-└─────────────────┘                                      	    └──────────────────┘
+┌─────────────────┐                 ⟺                       ┌──────────────────┐
+│ FortiGate Server│ ◄─────────────────────────────────────►  │ FortiGate Cliente│
+│ 192.168.0.102   │         10.0.1.0/24 ↔ 10.0.2.0/24        │ 192.168.0.103    │
+│                 │                                          │                  │
+│ Zabbix Server   │ ──── Monitorización remota ───────────►  │ Ubuntu + Agent   │
+│ 10.0.1.10       │         (por VPN cifrada)                │ 10.0.2.100       │
+└─────────────────┘                                          └──────────────────┘
 ```
 
 ---
