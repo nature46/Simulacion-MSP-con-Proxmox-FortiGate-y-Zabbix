@@ -1,126 +1,110 @@
-# 🖥️ Ubuntu Cliente — Configuración en VMware
+# Ubuntu Cliente — Configuración VM en Red Cliente (VMnet2)
 
-## VM Ubuntu simulando host monitorizado en sede cliente remota
+## Guía completa para desplegar el host cliente con Zabbix Agent en la red 10.0.2.0/24
 
 ---
 
 ## Contexto
 
-Esta VM Ubuntu simula un **servidor o estación de trabajo** en la oficina de un cliente del MSP. Se conecta a la red interna del cliente (`10.0.2.0/24`) y su tráfico:
-
-- **Tráfico MSP (Zabbix)** → Sale por VPN cifrada hacia `10.0.1.0/24`
-- **Tráfico internet normal** → Sale directo por FortiGate Cliente con NAT
-
-Este es el **split-tunneling** profesional que implementan los MSPs reales.
-
----
-
-## Arquitectura
+Esta VM Ubuntu simula un **PC o servidor en la oficina de un cliente remoto** del MSP. Está conectada a la red `10.0.2.0/24` (VMnet2), que es la LAN interna del lado cliente del túnel VPN.
 
 ```
-UBUNTU VM (10.0.2.100)
-    │
-    └─► VMnet2 (red interna cliente)
-         │
-         └─► FortiGate Cliente port2 (10.0.2.254)
-              │
-              ├─► Destino 10.0.1.0/24 → VPN túnel cifrado
-              └─► Resto destinos → Internet directo (NAT port1)
+PC Windows (VMware Workstation)
+├── FortiGate Cliente
+│   ├── port1 (WAN): NAT VMware → acceso a Internet
+│   └── port2 (LAN): VMnet2 → red cliente 10.0.2.0/24
+└── Ubuntu VM (este documento)
+    ├── ens33: 10.0.2.100/24
+    ├── Gateway: 10.0.2.254 (FortiGate Cliente)
+    └── Zabbix Agent 2 → reporta a 10.0.1.10 (Zabbix Server vía VPN)
+```
+
+**Flujo de datos de monitorización:**
+```
+Ubuntu (10.0.2.100)
+  └─► Zabbix Agent envía métricas a 10.0.1.10:10051
+       └─► FortiGate Cliente → cifra con IPsec → VPN tunnel
+            └─► FortiGate Server → descifra
+                 └─► LXC-104 eth1 (10.0.1.10) → Zabbix Server ✅
 ```
 
 ---
 
 ## Requisitos Previos
 
-- VMware Workstation instalado en tu PC Windows
-- VMnet2 ya creada (ver [02-FortiGate-Cliente-Setup.md](02-FortiGate-Cliente-Setup.md))
-- FortiGate Cliente operativo con política NAT activa
-- Ubuntu Desktop 22.04 ISO descargada
+- VMware Workstation instalado en el PC
+- VMnet2 configurada como Host-only (10.0.2.0/24, sin DHCP)
+- FortiGate Cliente operativo con port2 en VMnet2 (IP 10.0.2.254)
+- Túnel VPN IPsec activo entre ambos FortiGates
+- Ubuntu 22.04 LTS disponible (ISO o imagen existente)
+
+> **Verificación previa:** Antes de empezar, confirma que el túnel VPN está UP:
+> ```bash
+> ssh admin@192.168.0.103
+> diagnose vpn tunnel list name VPN-Virtus-CS
+> # Debe mostrar: status=up
+> ```
 
 ---
 
-## Paso 1 — Crear VM en VMware
+## Paso 1 — Crear la VM Ubuntu en VMware
 
-### Configuración VM
+> Si ya tienes una Ubuntu instalada, ve directamente al Paso 2.
 
-**File → New Virtual Machine:**
+### Crear nueva VM
 
-| Parámetro | Valor |
-|-----------|-------|
-| **Configuration** | Typical |
-| **Installer disc image** | Ubuntu 22.04 Desktop ISO |
-| **Full name** | pablo (o tu usuario) |
-| **Username** | pablo |
-| **Password** | *(tu contraseña)* |
-| **VM name** | Ubuntu-Cliente-Castellon |
-| **Location** | Directorio local |
-| **Disk size** | 25 GB (single file) |
+**Archivo → Nueva máquina virtual → Típica:**
 
-**Finalizar creación** pero **no arrancar aún**.
+| Campo | Valor |
+|---|---|
+| Instalación | ISO de Ubuntu 22.04 LTS |
+| Nombre | `Ubuntu-Cliente-Castellon` |
+| Disco | 20 GB (almacenamiento único) |
+| RAM | 2 GB |
+| CPU | 1 core |
 
----
+### Configurar adaptador de red
 
-## Paso 2 — Configurar Adaptador de Red
+**Ajustes de la VM → Adaptador de red:**
 
-**VM Settings → Hardware → Network Adapter:**
-
-| Configuración | Valor |
-|---------------|-------|
-| **Network connection** | Custom: Specific virtual network |
-| **Virtual network** | VMnet2 (Host-only) |
-| **Replicate physical network...** | ❌ Desmarcar |
-
-**Importante:** La VM debe tener **un solo adaptador** en VMnet2.
-
-> ⚠️ Si tiene dos adaptadores (uno en Bridged y otro en VMnet2), eliminar el de Bridged. La VM solo debe tener salida a través del FortiGate Cliente.
-
----
-
-## Paso 3 — Instalación Ubuntu
-
-**Arrancar la VM** y seguir el instalador gráfico:
-
-1. **Welcome:** Español / English (según preferencia)
-2. **Keyboard layout:** Spanish / US (según preferencia)
-3. **Updates and software:** 
-   - Normal installation
-   - ✅ Download updates while installing
-4. **Installation type:** Erase disk and install Ubuntu
-5. **Who are you:**
-   - Name: Pablo
-   - Computer name: ubuntu-cliente
-   - Username: pablo
-   - Password: *(segura pero memorable)*
-6. **Finish** → Reiniciar cuando pida
-
----
-
-## Paso 4 — Configurar Red Estática
-
-Tras reiniciar e iniciar sesión:
-
-### Verificar nombre de interfaz
-
-```bash
-ip link show
+```
+Conexión de red: Personalizada: red virtual específica
+└─ Seleccionar: VMnet2
 ```
 
-Buscar el nombre de la interfaz (típicamente `ens33`, `ens160`, o `enp0s3`).
+> ⚠️ **Importante:** NO usar modo Puente ni NAT. Debe ser VMnet2 (Host-only) para que el tráfico pase por el FortiGate Cliente y luego por la VPN.
 
-### Editar Netplan
+---
+
+## Paso 2 — Configurar Red Estática (Netplan)
+
+### Identificar la interfaz de red
+
+```bash
+ip addr show
+```
+
+Busca la interfaz que NO sea `lo`. Normalmente es `ens33` en VMware.
+
+```
+2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP>
+    link/ether 00:0c:29:xx:xx:xx
+```
+
+### Editar configuración Netplan
 
 ```bash
 sudo nano /etc/netplan/01-network-manager-all.yaml
 ```
 
-**Contenido completo:**
+**Reemplazar TODO el contenido con:**
 
 ```yaml
 network:
   version: 2
-  renderer: NetworkManager
+  renderer: networkd
   ethernets:
-    ens33:  # Ajustar al nombre real de tu interfaz
+    ens33:
       dhcp4: no
       addresses:
         - 10.0.2.100/24
@@ -133,84 +117,91 @@ network:
           - 1.1.1.1
 ```
 
-**Guardar:** `Ctrl+O`, `Enter`, `Ctrl+X`
+> **⚠️ Importante — renderer: networkd**
+> Usar `networkd` en vez de `NetworkManager`. Si se deja `NetworkManager`, puede ignorar la configuración estática y resetear la interfaz periódicamente, causando pérdidas de red intermitentes cada pocos minutos.
 
 ### Aplicar configuración
 
 ```bash
+# Corregir permisos (evita warnings de Netplan)
+sudo chmod 600 /etc/netplan/01-network-manager-all.yaml
+
+# Aplicar cambios
 sudo netplan apply
 ```
 
-### Verificar
+### Verificar configuración
 
 ```bash
-ip addr show
+ip addr show ens33
+ip route show
 ```
 
-Debe mostrar:
+**Salida esperada:**
 
 ```
-ens33: <BROADCAST,MULTICAST,UP,LOWER_UP>
-    inet 10.0.2.100/24 brd 10.0.2.255 scope global ens33
+2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP>
+    inet 10.0.2.100/24 brd 10.0.2.255 scope global noprefixroute ens33
+
+default via 10.0.2.254 dev ens33 proto static metric 20100
+10.0.2.0/24 dev ens33 proto kernel scope link src 10.0.2.100 metric 100
 ```
 
 ---
 
-## Paso 5 — Test de Conectividad
+## Paso 3 — Verificar Conectividad
 
-### Ping al FortiGate Cliente (gateway local)
+### Test de red local (FortiGate Cliente LAN)
 
 ```bash
 ping -c 3 10.0.2.254
 ```
 
-**Esperado:** 0% packet loss
+**Esperado:** 0% packet loss — el FortiGate Cliente responde.
 
-### Ping a Zabbix Server (a través de VPN)
+### Test de Internet (vía NAT del FortiGate Cliente)
+
+```bash
+ping -c 3 8.8.8.8
+ping -c 3 google.com
+```
+
+**Esperado:** respuesta correcta — el FortiGate hace NAT para el tráfico de Internet.
+
+### Test de conectividad por VPN (Zabbix Server)
 
 ```bash
 ping -c 3 10.0.1.10
 ```
 
-**Esperado:** 0% packet loss, ~1ms RTT
+**Esperado:** respuesta correcta — el tráfico va por la VPN hasta el Zabbix Server.
 
-> ✅ Si esto funciona, el túnel VPN está operativo y el split-tunneling funciona.
-
-### Ping a internet (a través de NAT del FortiGate)
-
-```bash
-ping -c 3 8.8.8.8
-```
-
-**Esperado:** 0% packet loss
-
-### Resolución DNS
-
-```bash
-ping -c 3 google.com
-```
-
-**Esperado:** Resuelve la IP y responde
+> Si este ping falla, ver sección de Troubleshooting al final del documento.
 
 ---
 
-## Paso 6 — Actualizar Sistema
+## Paso 4 — Instalar Zabbix Agent 2
+
+### Actualizar sistema
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y vim curl wget net-tools traceroute
+sudo apt install -y curl wget net-tools
 ```
-
----
-
-## Paso 7 — Instalar Zabbix Agent 2
 
 ### Añadir repositorio oficial Zabbix
 
+> **⚠️ Ajusta la versión de Ubuntu si es necesario.** Este comando es para Ubuntu 24.04. Para Ubuntu 22.04, cambia `ubuntu24.04` por `ubuntu22.04`.
+
 ```bash
-wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest+ubuntu22.04_all.deb
-sudo dpkg -i zabbix-release_latest+ubuntu22.04_all.deb
+# Para Ubuntu 24.04:
+wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest+ubuntu24.04_all.deb
+
+# Para Ubuntu 22.04:
+# wget https://repo.zabbix.com/zabbix/7.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_latest+ubuntu22.04_all.deb
+
+sudo dpkg -i zabbix-release_latest+ubuntu*.deb
 sudo apt update
 ```
 
@@ -220,350 +211,296 @@ sudo apt update
 sudo apt install -y zabbix-agent2
 ```
 
-### Configurar Agent
+### Verificar instalación
+
+```bash
+zabbix_agent2 --version
+```
+
+Salida esperada:
+```
+zabbix_agent2 (Zabbix) 7.0.x
+```
+
+---
+
+## Paso 5 — Configurar Zabbix Agent 2
+
+### Editar archivo de configuración
 
 ```bash
 sudo nano /etc/zabbix/zabbix_agent2.conf
 ```
 
-**Líneas clave a modificar:**
+**Buscar y modificar exactamente estas tres líneas:**
 
 ```ini
+# IP del Zabbix Server (monitorización pasiva - el server consulta al agente)
 Server=10.0.1.10
+
+# IP del Zabbix Server (monitorización activa - el agente envía datos)
 ServerActive=10.0.1.10
+
+# Nombre del host (debe coincidir EXACTAMENTE con el nombre en la GUI de Zabbix)
 Hostname=Ubuntu-Cliente-Castellon
 ```
 
-**Explicación:**
-- `Server`: IP del Zabbix Server (comunicación pasiva)
-- `ServerActive`: IP del Zabbix Server (comunicación activa)
-- `Hostname`: Identificador del host en Zabbix (debe coincidir con el nombre en la GUI)
+> **Nota sobre Server vs ServerActive:**
+> - `Server`: el Zabbix Server se conecta al agente en el puerto 10050 para consultar métricas (modo pasivo)
+> - `ServerActive`: el agente se conecta al Zabbix Server en el puerto 10051 para enviar métricas (modo activo)
+> Configura ambos para máxima compatibilidad con cualquier template.
 
-### Reiniciar servicio
+### Activar e iniciar el servicio
 
 ```bash
-sudo systemctl restart zabbix-agent2
 sudo systemctl enable zabbix-agent2
+sudo systemctl restart zabbix-agent2
 ```
 
-### Verificar estado
+### Verificar estado del servicio
 
 ```bash
 sudo systemctl status zabbix-agent2
 ```
 
-**Esperado:**
+**Salida esperada:**
 
 ```
 ● zabbix-agent2.service - Zabbix Agent 2
-   Loaded: loaded
-   Active: active (running)
+     Loaded: loaded (/usr/lib/systemd/system/zabbix-agent2.service; enabled)
+     Active: active (running) since ...
+             └─ /usr/sbin/zabbix_agent2 -c /etc/zabbix/zabbix_agent2.conf
+             Zabbix Agent2 hostname: [Ubuntu-Cliente-Castellon]
 ```
 
-### Test de conectividad Agent → Server
-
-```bash
-zabbix_agent2 -t agent.ping
-```
-
-**Esperado:**
-
-```
-agent.ping                                    [u|1]
-```
+> El hostname `[Ubuntu-Cliente-Castellon]` en los logs confirma que la configuración se leyó correctamente.
 
 ---
 
-## Paso 8 — Agregar Host en Zabbix Server
+## Paso 6 — Añadir Host en Zabbix Server (GUI)
 
-### Desde Zabbix Web GUI
+### Acceder a Zabbix Web
 
-**Acceso:** `http://192.168.0.114:8080` (o `https://zabbix.nature46.uk` si Cloudflare está activo)
+```
+http://192.168.0.114:8080
+```
 
-**Login:** `Admin` / `<tu_password>`
+O si tienes Cloudflare configurado: `https://zabbix.tudominio.com`
 
-### Crear host
+Login: `Admin` / `<tu_password>`
 
-**Configuration → Hosts → Create host:**
+### Crear el host
+
+**Data collection → Hosts → Create host**
+
+Rellenar los campos:
 
 | Campo | Valor |
-|-------|-------|
+|---|---|
 | **Host name** | `Ubuntu-Cliente-Castellon` |
 | **Visible name** | Ubuntu Cliente (Castellón) |
-| **Templates** | Linux by Zabbix agent |
-| **Groups** | Linux servers, Clientes MSP *(crear grupo)* |
-| **Interfaces** | Agent: `10.0.2.100`, Port: `10050` |
+| **Templates** | `Linux by Zabbix agent` |
+| **Host groups** | `Linux servers` |
 
-**Add → Apply**
+En la sección **Interfaces → Add → Agent:**
 
-### Verificar monitorización
+| Campo | Valor |
+|---|---|
+| **IP address** | `10.0.2.100` |
+| **Port** | `10050` |
 
-**Monitoring → Latest data:**
+Click **Add** para guardar el host.
 
-Filtrar por host `Ubuntu-Cliente-Castellon`
+> **⚠️ El campo "Host name" debe coincidir EXACTAMENTE con el `Hostname` del archivo `zabbix_agent2.conf`** — incluyendo mayúsculas, minúsculas y guiones.
 
-Debe aparecer métricas:
-- CPU utilization
-- Memory utilization
-- Disk usage
-- Network traffic
+### Verificar que el host aparece como disponible
+
+Ir a **Data collection → Hosts** y esperar 1-2 minutos.
+
+El indicador **ZBX** debe aparecer en **verde** ✅
+
+Si aparece en rojo, ver sección Troubleshooting.
 
 ---
 
-## Verificación Completa del Escenario
+## Paso 7 — Verificar Métricas en Zabbix
 
-### Diagrama del flujo de datos
+### Ver datos en tiempo real
 
-```
-UBUNTU CLIENTE (10.0.2.100)
-  └─► Zabbix Agent 2 recopila métricas
-       └─► Envía datos a 10.0.1.10:10051
-            └─► FortiGate Cliente detecta destino 10.0.1.0/24
-                 └─► Enruta por VPN-Virtus-CS (CIFRADO)
-                      └─► Llega a FortiGate Server
-                           └─► Enruta a 10.0.1.10 (LXC-104 eth1)
-                                └─► Zabbix Server recibe datos ✅
-```
+**Monitoring → Latest data**
 
-### Test manual desde Zabbix Server
+- Filtrar por: **Hosts** = `Ubuntu-Cliente-Castellon`
+- Debe aparecer una lista de métricas con valores recientes:
+  - CPU utilization
+  - Memory utilization
+  - Filesystem usage
+  - Network traffic
+
+### Ver gráficas
+
+**Monitoring → Hosts → Ubuntu-Cliente-Castellon → Graphs**
+
+Selecciona cualquier métrica para ver su gráfica histórica.
+
+---
+
+## Verificación Final del Escenario Completo
+
+Ejecutar desde LXC-104 (Zabbix Server) para confirmar conectividad end-to-end:
 
 ```bash
-# Desde LXC-104
 pct enter 104
+
+# Ping al FortiGate Cliente (extremo remoto del túnel)
+ping -c 3 10.0.2.254
+
+# Ping al Ubuntu Cliente (host monitorizado)
+ping -c 3 10.0.2.100
+
+# Test directo del agente Zabbix
 zabbix_get -s 10.0.2.100 -k agent.ping
 ```
 
-**Esperado:**
-
+**Salida esperada del último comando:**
 ```
 1
 ```
 
-Si devuelve `1`, el Zabbix Server puede consultar al Agent a través de la VPN.
+El valor `1` confirma que el Zabbix Server puede consultar al agente a través de la VPN cifrada.
 
 ---
 
 ## Troubleshooting
 
-### Agent no conecta con Server
+### Ubuntu pierde red cada pocos minutos
 
-**Síntoma:** Host en Zabbix muestra "ZBX" rojo (no disponible)
+**Síntoma:** `ping 8.8.8.8` falla intermitentemente. Ejecutar `sudo netplan apply` lo arregla temporalmente.
 
-**Verificar:**
+**Causa:** El renderer `NetworkManager` está en conflicto con la configuración estática de Netplan. NetworkManager gestiona la interfaz y la resetea periódicamente.
 
-```bash
-# Desde el Ubuntu cliente
-sudo systemctl status zabbix-agent2
-sudo tail -f /var/log/zabbix/zabbix_agent2.log
+**Solución:** Cambiar a renderer `networkd` en el archivo netplan:
+
+```yaml
+network:
+  version: 2
+  renderer: networkd   # ← Cambiar NetworkManager por networkd
+  ethernets:
+    ens33:
+      ...
 ```
 
-**Causas comunes:**
+```bash
+sudo chmod 600 /etc/netplan/01-network-manager-all.yaml
+sudo netplan apply
+```
 
-1. **Firewall en Ubuntu bloqueando puerto 10050**
+---
+
+### Ping a 10.0.1.10 falla (La red es inaccesible)
+
+**Síntoma:** `ping 10.0.1.10` devuelve `connect: La red es inaccesible`
+
+**Verificación 1 — ¿La interfaz tiene IP?**
+
+```bash
+ip addr show ens33
+```
+
+Si no tiene IP: `sudo netplan apply`
+
+**Verificación 2 — ¿El FortiGate Cliente está encendido?**
+
+El gateway `10.0.2.254` debe estar disponible antes de intentar rutas más lejanas:
+
+```bash
+ping -c 3 10.0.2.254
+```
+
+Si no responde → encender la VM del FortiGate Cliente en VMware y esperar 30 segundos.
+
+**Verificación 3 — ¿El túnel VPN está activo?**
+
+```bash
+ssh admin@192.168.0.103
+diagnose vpn tunnel list name VPN-Virtus-CS
+# status=up significa túnel activo
+```
+
+**Verificación 4 — ¿LXC-104 tiene la ruta de vuelta?**
+
+El LXC-104 necesita saber cómo llegar a `10.0.2.0/24`. Esta ruta se añade automáticamente via hookscript al arrancar. Verificar:
+
+```bash
+# Desde el host Proxmox
+pct exec 104 -- ip route show | grep 10.0.2
+# Debe mostrar: 10.0.2.0/24 via 10.0.1.254 dev eth1
+```
+
+Si no aparece, añadir manualmente:
+
+```bash
+lxc-attach -n 104 -- ip route add 10.0.2.0/24 via 10.0.1.254 dev eth1
+```
+
+---
+
+### Zabbix Agent no conecta — ZBX rojo en la GUI
+
+**Verificación 1 — Estado del servicio:**
+
+```bash
+sudo systemctl status zabbix-agent2
+sudo tail -20 /var/log/zabbix/zabbix_agent2.log
+```
+
+**Verificación 2 — Hostname correcto:**
+
+```bash
+grep "^Hostname=" /etc/zabbix/zabbix_agent2.conf
+# Debe coincidir EXACTAMENTE con el hostname en la GUI de Zabbix
+```
+
+**Verificación 3 — Firewall local:**
 
 ```bash
 sudo ufw status
-# Si está activo:
+# Si está activo y bloqueando el puerto 10050:
 sudo ufw allow 10050/tcp
 ```
 
-2. **IP incorrecta en zabbix_agent2.conf**
+**Verificación 4 — Puerto accesible desde el servidor:**
 
 ```bash
-grep "^Server=" /etc/zabbix/zabbix_agent2.conf
-# Debe mostrar: Server=10.0.1.10
-```
-
-3. **VPN caída**
-
-```bash
-ping -c 3 10.0.1.10
-# Si no responde, revisar FortiGate Cliente
-```
-
-### No tiene internet
-
-**Síntoma:** `ping 8.8.8.8` falla
-
-**Verificar:**
-
-1. **Política NAT en FortiGate Cliente**
-
-```bash
-# En FortiGate Cliente
-ssh admin@192.168.0.103
-show firewall policy | grep -A5 "LAN-to-Internet"
-```
-
-Debe mostrar `set nat enable`.
-
-2. **Rutas en Ubuntu**
-
-```bash
-ip route show
-```
-
-Debe mostrar:
-
-```
-default via 10.0.2.254 dev ens33
-```
-
-3. **DNS funcionando**
-
-```bash
-cat /etc/resolv.conf
-```
-
-Debe contener `nameserver 8.8.8.8` o similar.
-
-### Latencia alta en VPN
-
-**Síntoma:** Ping a `10.0.1.10` tarda >50ms
-
-**Diagnóstico:**
-
-```bash
-# Desde Ubuntu cliente
-traceroute -n 10.0.1.10
-```
-
-**Esperado:**
-
-```
-1  10.0.2.254      0.3 ms   (FortiGate Cliente)
-2  10.0.1.10       1.2 ms   (Zabbix Server)
-```
-
-Si hay más saltos o latencias altas, revisar túnel VPN:
-
-```bash
-# En FortiGate Cliente
-diagnose vpn tunnel list | grep -i "time\|rtt"
+# Desde LXC-104
+zabbix_get -s 10.0.2.100 -k agent.ping
+# Debe devolver: 1
 ```
 
 ---
 
-## Comandos de Mantenimiento
+## Resumen de Configuración
 
-### Ver logs Zabbix Agent
-
-```bash
-sudo tail -f /var/log/zabbix/zabbix_agent2.log
 ```
-
-### Reiniciar Agent tras cambios config
-
-```bash
-sudo systemctl restart zabbix-agent2
-```
-
-### Test manual de métricas
-
-```bash
-zabbix_agent2 -t system.cpu.load[percpu,avg1]
-zabbix_agent2 -t vm.memory.size[available]
-zabbix_agent2 -t vfs.fs.size[/,used]
-```
-
-### Verificar conectividad Zabbix
-
-```bash
-# Test desde el propio Ubuntu (loopback)
-zabbix_get -s 127.0.0.1 -k agent.ping
+VM Ubuntu: Ubuntu-Cliente-Castellon
+├── OS: Ubuntu 22.04/24.04 LTS
+├── Adaptador VMware: VMnet2 (Host-only, 10.0.2.0/24)
+├── IP: 10.0.2.100/24
+├── Gateway: 10.0.2.254 (FortiGate Cliente)
+├── DNS: 8.8.8.8 / 1.1.1.1
+├── Netplan renderer: networkd (estable, sin pérdidas)
+└── Zabbix Agent 2
+    ├── Server: 10.0.1.10
+    ├── ServerActive: 10.0.1.10
+    └── Hostname: Ubuntu-Cliente-Castellon
 ```
 
 ---
 
-## Simulación de Alertas
+## Siguiente Paso
 
-Para probar que Zabbix detecta problemas:
+Con el agente funcionando y reportando métricas, el siguiente paso es configurar **alertas y triggers** en Zabbix para ser notificado cuando el cliente tenga problemas:
 
-### Simular CPU alta
-
-```bash
-# Genera carga CPU
-stress --cpu 4 --timeout 60s
-# Instalar stress si no existe:
-sudo apt install -y stress
-```
-
-En Zabbix GUI, tras 1-2 minutos debe aparecer trigger:
-
-```
-High CPU utilization on Ubuntu-Cliente-Castellon
-```
-
-### Simular disco lleno
-
-```bash
-dd if=/dev/zero of=/tmp/bigfile bs=1M count=5000
-```
-
-Debe generar alerta de espacio en disco bajo.
-
-### Limpiar
-
-```bash
-rm /tmp/bigfile
-```
-
----
-
-## Mejoras Futuras
-
-### Corto plazo
-- [ ] Configurar triggers personalizados en Zabbix
-- [ ] Alertas por Telegram cuando el host cae
-- [ ] Items personalizados (monitorizar aplicaciones específicas)
-
-### Mediano plazo
-- [ ] Template personalizado "Ubuntu Cliente MSP"
-- [ ] Scripts de auto-discovery de servicios
-- [ ] Integración con ticketing (crear ticket automático si alerta)
-
-### Largo plazo
-- [ ] Zabbix Proxy en red cliente (arquitectura distribuida)
-- [ ] Monitoring de aplicaciones Docker en el cliente
-- [ ] Zabbix sender para métricas custom
-
----
-
-## Snapshot de Respaldo
-
-Tras tener todo funcional, crear snapshot en VMware:
-
-**VM → Snapshot → Take Snapshot:**
-
-| Campo | Valor |
-|-------|-------|
-| **Name** | `baseline-zabbix-agent-ok` |
-| **Description** | Ubuntu con red, VPN, Zabbix Agent funcional |
-| **Snapshot memory** | ❌ (no necesario) |
-
----
-
-## Recursos del Sistema
-
-```bash
-# Ver uso de recursos
-htop
-
-# Ver conexiones de red activas
-sudo ss -tunap | grep zabbix
-
-# Ver logs del sistema
-journalctl -u zabbix-agent2 -f
-```
-
----
-
-**Documentos relacionados:**
-- [← FortiGate Cliente Setup](02-FortiGate-Cliente-Setup.md)
-- [← Túnel VPN IPsec](04-VPN-IPsec-Tunnel.md)
-- [← LXC-104 Zabbix Server](03-LXC-104-Dual-Homed.md)
-- [→ Troubleshooting](06-Troubleshooting.md)
-
----
-
-*Última actualización: Febrero 2025*
+- Triggers de CPU > 80%
+- Triggers de disco > 90%
+- Alertas por Telegram o Email
+- Dashboard tipo MSP con visión global de todos los clientes
