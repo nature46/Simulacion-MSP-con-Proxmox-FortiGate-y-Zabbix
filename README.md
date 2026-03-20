@@ -2,10 +2,10 @@
 
 ## Simulación profesional de infraestructura MSP con Proxmox, FortiGate y Zabbix
 
-[![Estado](https://img.shields.io/badge/estado-funcional-success)]()
-[![FortiGate](https://img.shields.io/badge/FortiGate-7.6.6-red)]()
-[![Zabbix](https://img.shields.io/badge/Zabbix-7.0%20LTS-blue)]()
-[![Proxmox](https://img.shields.io/badge/Proxmox-9.x-orange)]()
+[![Estado](https://img.shields.io/badge/estado-funcional-success)](https://github.com/nature46/Simulacion-MSP-con-Proxmox-FortiGate-y-Zabbix/blob/main)
+[![FortiGate](https://img.shields.io/badge/FortiGate-7.6.6-red)](https://github.com/nature46/Simulacion-MSP-con-Proxmox-FortiGate-y-Zabbix/blob/main)
+[![Zabbix](https://img.shields.io/badge/Zabbix-7.0%20LTS-blue)](https://github.com/nature46/Simulacion-MSP-con-Proxmox-FortiGate-y-Zabbix/blob/main)
+[![Proxmox](https://img.shields.io/badge/Proxmox-9.x-orange)](https://github.com/nature46/Simulacion-MSP-con-Proxmox-FortiGate-y-Zabbix/blob/main)
 
 ---
 
@@ -13,7 +13,7 @@
 
 Este proyecto replica la **infraestructura completa de un Managed Service Provider (MSP)** real como Virtus Informática, donde una empresa central gestiona y monitoriza remotamente la infraestructura de múltiples clientes a través de túneles VPN seguros.
 
-**Objetivo educativo:** Preparación para prácticas profesionales en empresa MSP, dominando el stack tecnológico FortiGate + Zabbix + Proxmox usado en producción.
+**Objetivo educativo:** Preparación para prácticas profesionales en empresa MSP, dominando el stack tecnológico FortiGate + Zabbix + Proxmox usado en producción real.
 
 ### Escenario simulado
 
@@ -21,44 +21,50 @@ Este proyecto replica la **infraestructura completa de un Managed Service Provid
 SEDE CENTRAL MSP               TÚNEL VPN CIFRADO              EMPRESA CLIENTE
 (Proxmox "ODIN")              IPsec Site-to-Site            (VMware Workstation)
 ┌─────────────────┐                 ⟺                       ┌──────────────────┐
-│ FortiGate Server│ ◄─────────────────────────────────────►  │ FortiGate Cliente│
-│ 192.168.0.102   │         10.0.1.0/24 ↔ 10.0.2.0/24        │ 192.168.0.103    │
+│ FortiGate Server│ ◄─────────────────────────────────────► │ FortiGate Cliente│
+│ 192.168.0.102   │         10.0.1.0/24 ↔ 10.0.2.0/24       │ 192.168.0.103    │
 │                 │                                          │                  │
-│ Zabbix Server   │ ──── Monitorización remota ───────────►  │ Ubuntu + Agent   │
-│ 10.0.1.10       │         (por VPN cifrada)                │ 10.0.2.100       │
+│ Zabbix Server   │ ──── Monitorización remota ───────────► │ Ubuntu + Agent   │
+│ 10.0.1.10       │         (por VPN cifrada)               │ 10.0.2.100       │
 └─────────────────┘                                          └──────────────────┘
 ```
 
 ---
 
-## 🎯 Logros Completados
+## 🎯 Estado del Proyecto
 
-### ✅ Infraestructura base
-- [x] Red física vmbr0 (192.168.0.0/24) operativa
-- [x] Red interna vmbr1 (10.0.1.0/24) aislada para FortiGate
-- [x] VM-107 FortiGate Server en Proxmox funcional
-- [x] LXC-104 dual-homed (eth0 management + eth1 monitoring)
+### ✅ FASE 1 — FortiGate + VPN (COMPLETADA)
 
-### ✅ FortiGate VPN Site-to-Site
-- [x] FortiGate Server configurado (port1 WAN + port2 LAN + NAT)
-- [x] FortiGate Cliente en VMware (Bridged + VMnet2)
-- [x] Túnel VPN IPsec Phase 1 y Phase 2 establecido
-- [x] **Políticas firewall bidireccionales activas**
-- [x] **Routing entre redes 10.0.1.0/24 ↔ 10.0.2.0/24 funcional**
-- [x] Split-tunneling profesional (VPN solo para tráfico MSP, resto por internet)
+- Red física `vmbr0` (192.168.0.0/24) y red interna `vmbr1` (10.0.1.0/24) operativas
+- VM-107 FortiGate Server en Proxmox — port1 WAN + port2 LAN + NAT
+- FortiGate Cliente en VMware — Bridged WAN + VMnet2 LAN
+- Túnel VPN IPsec Phase 1 + Phase 2 establecido y estable
+- Políticas firewall bidireccionales (LAN↔VPN) activas
+- Split-tunneling — solo tráfico MSP va por VPN, internet sale directo
+- GUI FortiGate Server movida a puerto 8443 (evita conflicto con IKE en 443)
 
-### ✅ Monitorización Zabbix
-- [x] Zabbix Server 7.0 LTS en Docker Compose
-- [x] PostgreSQL 15 Alpine optimizado para Zabbix
-- [x] Uptime Kuma coexistiendo en LXC-104
-- [x] Cloudflare Tunnel para acceso externo (zabbix.nature46.uk)
-- [x] Housekeeping configurado (14d history / 180d trends)
+### ✅ FASE 2 — Zabbix + Monitorización (COMPLETADA)
 
-### ✅ Cliente remoto
-- [x] VM Ubuntu en VMware conectada a VMnet2 (10.0.2.100)
-- [x] Internet funcional vía NAT del FortiGate Cliente
-- [x] Conectividad bidireccional Zabbix Server ↔ Cliente por VPN
-- [ ] Zabbix Agent 2 instalado y reportando métricas *(próximo paso)*
+- LXC-104 dual-homed (eth0 management 192.168.0.114 + eth1 monitored 10.0.1.10)
+- Hookscript Proxmox para rutas persistentes (eth0 preferida + ruta VPN 10.0.2.0/24)
+- Zabbix Server 7.0 LTS en Docker Compose con PostgreSQL 15 Alpine
+- Uptime Kuma coexistiendo en el mismo LXC-104
+- Cloudflare Tunnel → `zabbix.nature46.uk` (acceso externo sin puertos abiertos)
+- Housekeeping optimizado (14d history / 180d trends)
+- VM Ubuntu cliente (10.0.2.100) en VMnet2 con red estable (renderer: networkd)
+- Zabbix Agent 2 instalado, configurado y reportando métricas
+- 25 triggers activos (CPU, RAM, disco, red, seguridad, disponibilidad)
+- Alertas Telegram — notificación de problema y resolución automática
+- Alertas Email (Gmail) — canal formal con contraseña de aplicación
+- Dashboard MSP "Vista Global" con 8 widgets en tiempo real
+
+### 🔄 PENDIENTE
+
+- SNMP monitoring de los propios FortiGates desde Zabbix
+- Zabbix Proxy en red cliente (arquitectura distribuida)
+- Automatización con Ansible
+- Runbooks y procedimientos operativos MSP
+- NSE 1 + NSE 2 (certificaciones gratuitas Fortinet)
 
 ---
 
@@ -69,285 +75,187 @@ RED FÍSICA 192.168.0.0/24 (vmbr0)
 ├── 192.168.0.1        Router/Gateway (salida internet)
 ├── 192.168.0.100      Proxmox "ODIN" (hipervisor)
 ├── 192.168.0.101      NAS "Thoth" (almacenamiento NFS)
-├── 192.168.0.102      FortiGate Server port1 (WAN)
+├── 192.168.0.102      FortiGate Server port1 (WAN)  ← GUI: 8443
 ├── 192.168.0.103      FortiGate Cliente port1 (WAN) ← VMware Bridged
 └── 192.168.0.114      LXC-104 eth0 (management)
 
 RED INTERNA MSP 10.0.1.0/24 (vmbr1)
 ├── 10.0.1.1           Proxmox bridge gateway
-├── 10.0.1.10          LXC-104 eth1 (Zabbix monitored interface)
+├── 10.0.1.10          LXC-104 eth1 (Zabbix Server interface monitored)
 └── 10.0.1.254         FortiGate Server port2 (gateway LAN MSP)
          │
          └─────────────────────────────────────┐
                   VPN IPsec Site-to-Site        │
+                  (cifrado AES/SHA)             │
          ┌─────────────────────────────────────┘
          │
 RED INTERNA CLIENTE 10.0.2.0/24 (VMnet2)
-├── 10.0.2.100         Ubuntu VM (Zabbix Agent)
+├── 10.0.2.100         Ubuntu VM (Zabbix Agent 2)
 └── 10.0.2.254         FortiGate Cliente port2 (gateway LAN cliente)
 ```
 
 ---
 
-## 📚 Documentación del Proyecto
+## 📚 Documentación
 
-| Documento | Descripción | Enlace |
-|-----------|-------------|--------|
-| **README.md** | Este archivo — Visión general del proyecto | *(estás aquí)* |
-| **01-FortiGate-Server-Setup.md** | Despliegue completo FortiGate en Proxmox (VM-107) | [Ver guía](01-FortiGate-Server-Setup.md) |
-| **02-FortiGate-Cliente-Setup.md** | Despliegue FortiGate en VMware Workstation | [Ver guía](02-FortiGate-Cliente-Setup.md) |
-| **03-LXC-104-Dual-Homed.md** | Configuración dual-interface + Stack Zabbix Docker | [Ver guía](03-LXC-104-Dual-Homed.md) |
-| **04-VPN-IPsec-Tunnel.md** | Configuración completa túnel VPN site-to-site | [Ver guía](04-VPN-IPsec-Tunnel.md) |
-| **05-Ubuntu-Cliente-Setup.md** | Configuración VM Ubuntu en red cliente | [Ver guía](05-Ubuntu-Cliente-Setup.md) |
-| **06-Troubleshooting.md** | Problemas comunes y soluciones | [Ver guía](06-Troubleshooting.md) |
-| **07-Diagrama-Red.md** | Diagramas de red (Mermaid + ASCII) | [Ver diagramas](07-Diagrama-Red.md) |
+| Documento | Descripción |
+|---|---|
+| [01-FortiGate-Server-Setup.md](01-FortiGate-Server-Setup.md) | Despliegue FortiGate en Proxmox — VM, interfaces, NAT, GUI |
+| [02-FortiGate-Cliente-Setup.md](02-FortiGate-Cliente-Setup.md) | Despliegue FortiGate en VMware — OVF, VMnet2, políticas |
+| [03-LXC-104-Dual-Homed.md](03-LXC-104-Dual-Homed.md) | LXC-104 dual-interface + Stack Zabbix Docker Compose |
+| [03b-LXC-104-Hookscript-Rutas.md](03b-LXC-104-Hookscript-Rutas.md) | Hookscript Proxmox — rutas persistentes tras reinicio |
+| [04-VPN-IPsec-Tunnel.md](04-VPN-IPsec-Tunnel.md) | Túnel VPN IPsec completo — Phase 1, Phase 2, políticas, verificación |
+| [05-Ubuntu-Cliente-Setup.md](05-Ubuntu-Cliente-Setup.md) | VM Ubuntu cliente — red, Zabbix Agent 2, registro en servidor |
+| [06-Zabbix-Alertas-Dashboard.md](06-Zabbix-Alertas-Dashboard.md) | Triggers, alertas Telegram/Gmail, dashboard MSP |
+| [06-Troubleshooting.md](06-Troubleshooting.md) | Problemas reales encontrados y soluciones documentadas |
 
 ---
 
 ## 🔧 Stack Tecnológico
 
-| Tecnología | Versión | Propósito |
-|------------|---------|-----------|
+| Tecnología | Versión | Rol |
+|---|---|---|
 | **Proxmox VE** | 9.x | Hipervisor principal (sede MSP) |
 | **FortiGate VM** | 7.6.6 build 3652 | Firewalls VPN (KVM + OVF) |
 | **Zabbix Server** | 7.0 LTS | Monitorización centralizada MSP |
 | **PostgreSQL** | 15 Alpine | Base de datos Zabbix |
 | **Docker Compose** | v2.x | Orquestación servicios LXC-104 |
 | **VMware Workstation** | 17.x | Simulación sede cliente remota |
-| **Ubuntu LXC** | 22.04 LTS | Sistema operativo containers |
-| **Ubuntu Desktop** | 22.04 LTS | Cliente con Zabbix Agent |
+| **Ubuntu** | 22.04/24.04 LTS | OS containers y VM cliente |
 | **Uptime Kuma** | 2.x | Monitorización complementaria |
+| **Cloudflare Tunnel** | — | Acceso externo sin puertos abiertos |
 
 ---
 
-## 💻 Hardware del Laboratorio
+## 💻 Hardware
 
-### Servidor Principal "ODIN"
+### Servidor "ODIN"
 ```
-Procesador: Intel N100 (4 cores, Alder Lake-N, 3.4 GHz boost)
-RAM:        16 GB DDR4
-Storage:    256 GB NVMe SSD (sistema + containers)
-Network:    1 GbE RJ45
-Power:      15W idle / 25W load (fanless)
+CPU:     Intel N100 (4 cores, 3.4 GHz boost, Alder Lake-N)
+RAM:     16 GB DDR4
+Storage: 256 GB NVMe SSD
+Red:     1 GbE RJ45
+Consumo: ~15W idle / ~25W carga
 ```
 
 ### NAS "Thoth"
 ```
-Modelo:     UGREEN DH2300 (2-bay)
-Capacidad:  3.6 TB usable (BTRFS)
-Protocolo:  NFS v3
-Función:    Backups y datos persistentes
+Modelo:    UGREEN DH2300 (2-bay)
+Capacidad: 3.6 TB usable (BTRFS RAID1)
+Protocolo: NFS v3
 ```
 
-### PC Cliente (Simulación)
+### PC Cliente (simulación)
 ```
-SO:         Windows 11
-Software:   VMware Workstation Pro/Player
-Rol:        Simula sede cliente remota
+SO:      Windows 11
+Soft:    VMware Workstation Pro
+Rol:     Simula sede cliente remota
 ```
 
 ---
 
-## 📊 Tabla de Direccionamiento IP Completa
+## 📊 Direccionamiento IP
 
-### Red WAN — vmbr0 (192.168.0.0/24)
-
-| Dispositivo | IP | Gateway | Rol |
-|-------------|-------|---------|-----|
-| Router físico | `192.168.0.1` | — | Salida internet |
-| Proxmox "ODIN" | `192.168.0.100` | 192.168.0.1 | Hipervisor |
-| NAS "Thoth" | `192.168.0.101` | 192.168.0.1 | Almacenamiento NFS |
-| **FortiGate Server port1** | `192.168.0.102` | 192.168.0.1 | WAN firewall MSP |
-| **FortiGate Cliente port1** | `192.168.0.103` | 192.168.0.1 | WAN firewall cliente |
-| LXC-104 eth0 | `192.168.0.114` | 192.168.0.1 | Management Zabbix |
-
-### Red LAN MSP — vmbr1 (10.0.1.0/24)
-
-| Dispositivo | IP | Gateway | Rol |
-|-------------|-------|---------|-----|
-| Proxmox bridge | `10.0.1.1` | — | Bridge virtual |
-| LXC-104 eth1 | `10.0.1.10` | 10.0.1.254 | Zabbix monitored interface |
-| **FortiGate Server port2** | `10.0.1.254` | — | Gateway LAN MSP |
-
-### Red LAN Cliente — VMnet2 (10.0.2.0/24)
-
-| Dispositivo | IP | Gateway | Rol |
-|-------------|-------|---------|-----|
-| **Ubuntu VM** | `10.0.2.100` | 10.0.2.254 | Host monitorizado (Zabbix Agent) |
-| **FortiGate Cliente port2** | `10.0.2.254` | — | Gateway LAN cliente |
+| Dispositivo | IP | Red | Rol |
+|---|---|---|---|
+| Router físico | `192.168.0.1` | vmbr0 | Gateway internet |
+| Proxmox ODIN | `192.168.0.100` | vmbr0 | Hipervisor |
+| NAS Thoth | `192.168.0.101` | vmbr0 | Almacenamiento NFS |
+| FortiGate Server port1 | `192.168.0.102` | vmbr0 | WAN firewall MSP |
+| FortiGate Cliente port1 | `192.168.0.103` | vmbr0 | WAN firewall cliente |
+| LXC-104 eth0 | `192.168.0.114` | vmbr0 | Management Zabbix |
+| LXC-104 eth1 | `10.0.1.10` | vmbr1 | Zabbix monitored interface |
+| FortiGate Server port2 | `10.0.1.254` | vmbr1 | Gateway LAN MSP |
+| Ubuntu VM | `10.0.2.100` | VMnet2 | Host monitorizado |
+| FortiGate Cliente port2 | `10.0.2.254` | VMnet2 | Gateway LAN cliente |
 
 ---
 
-## 🚀 Cómo Replicar Este Proyecto
+## 🚀 Cómo Replicar
 
-### Prerrequisitos
+### Requisitos
+- Servidor con Proxmox VE (mínimo 8GB RAM, recomendado 16GB)
+- PC con VMware Workstation (mínimo 8GB RAM libres)
+- Cuenta en [support.fortinet.com](https://support.fortinet.com) (licencias eval gratuitas)
+- Imágenes FortiGate VM KVM (para Proxmox) y OVF (para VMware)
 
-1. **Hardware mínimo:**
-   - Servidor con Proxmox VE instalado (16GB RAM recomendado)
-   - PC con VMware Workstation (8GB RAM libres)
-   - Conexión de red estable
-
-2. **Cuentas necesarias:**
-   - Cuenta gratuita en [Fortinet Support Portal](https://support.fortinet.com) (para licencias eval)
-   - *(Opcional)* Cuenta Cloudflare para túnel externo
-
-3. **Descargas:**
-   - FortiGate VM KVM para Proxmox (v7.6.6+)
-   - FortiGate VM OVF para VMware (v7.6.6+)
-   - Plantillas LXC Ubuntu 22.04
-
-### Orden de despliegue recomendado
+### Orden de despliegue
 
 ```
-Día 1-2: Infraestructura Base
-├─ 1. Crear vmbr1 en Proxmox
-├─ 2. Desplegar FortiGate Server (VM-107)
-├─ 3. Configurar LXC-104 dual-homed
-└─ 4. Desplegar stack Docker Zabbix
-
-Día 3-4: Lado Cliente
-├─ 5. Crear VMnet2 en VMware
-├─ 6. Desplegar FortiGate Cliente
-├─ 7. Crear VM Ubuntu en VMnet2
-└─ 8. Configurar red cliente
-
-Día 5: VPN Site-to-Site
-├─ 9. Configurar Phase 1 en ambos FortiGates
-├─ 10. Configurar Phase 2 en ambos FortiGates
-├─ 11. Crear políticas firewall VPN
-├─ 12. Verificar túnel UP
-└─ 13. Probar conectividad cross-VPN
-
-Día 6: Monitorización
-├─ 14. Instalar Zabbix Agent en Ubuntu
-├─ 15. Agregar host en Zabbix Server
-├─ 16. Configurar templates
-└─ 17. Crear dashboards
+1. Crear vmbr1 en Proxmox
+2. Desplegar FortiGate Server (VM-107) → guía 01
+3. Configurar LXC-104 dual-homed + Docker Zabbix → guía 03
+4. Crear VMnet2 en VMware + FortiGate Cliente → guía 02
+5. Crear VM Ubuntu en VMnet2 → guía 05
+6. Configurar túnel VPN IPsec → guía 04
+7. Instalar Zabbix Agent + alertas + dashboard → guías 05 y 06
 ```
 
-Sigue las guías en orden numérico en la carpeta de documentación.
+Sigue las guías en orden numérico.
 
 ---
 
 ## 🔐 Credenciales del Laboratorio
 
-> ⚠️ **Nota de seguridad:** Este es un entorno de laboratorio aislado. En producción, usa contraseñas únicas y rotación periódica.
+> ⚠️ Entorno de laboratorio aislado. En producción usa contraseñas únicas y rotación periódica. No expongas este repositorio con credenciales reales.
 
-| Servicio | Usuario | Contraseña | Acceso |
-|----------|---------|------------|--------|
-| **Proxmox VE** | `root` | *(tu password)* | https://192.168.0.100:8006 |
-| **FortiGate Server** | `admin` | `Virtus2026!CS` | https://192.168.0.102:8443 |
-| **FortiGate Cliente** | `admin` | `Virtus2026!CS` | https://192.168.0.103 |
-| **Zabbix Web** | `Admin` | *(cambiar tras login)* | http://192.168.0.114:8080 |
-| **Zabbix DB** | `zabbix` | *(ver `.env`)* | PostgreSQL interno |
-| **Ubuntu VM** | `pablo` | *(tu password)* | Consola VMware |
-
----
-
-## 🎓 Conceptos Aprendidos
-
-Este proyecto enseña habilidades de nivel profesional MSP:
-
-### Networking
-- ✅ VPN IPsec site-to-site con FortiGate
-- ✅ Dual-homed hosts con policy routing
-- ✅ Split-tunneling (tráfico selectivo por VPN)
-- ✅ NAT/PAT en firewalls empresariales
-- ✅ VLAN segmentation (vmbr0 vs vmbr1)
-
-### Virtualización
-- ✅ KVM en Proxmox (VM FortiGate)
-- ✅ LXC containers (Zabbix Server)
-- ✅ VMware Workstation (sede cliente)
-- ✅ Network bridges virtuales
-
-### Monitorización
-- ✅ Zabbix Server + Agent arquitectura
-- ✅ PostgreSQL tuning para monitorización
-- ✅ Docker Compose orquestación
-- ✅ Housekeeping y retención de datos
-
-### Troubleshooting
-- ✅ Routing debugging (ip route, traceroute)
-- ✅ VPN diagnostics (diagnose vpn tunnel list)
-- ✅ Firewall policy verification
-- ✅ Análisis de logs en tiempo real
+| Servicio | Usuario | Acceso |
+|---|---|---|
+| Proxmox VE | `root` | `https://192.168.0.100:8006` |
+| FortiGate Server | `admin` | `https://192.168.0.102:8443` |
+| FortiGate Cliente | `admin` | `https://192.168.0.103` |
+| Zabbix Web | `Admin` | `http://192.168.0.114:8080` |
+| Zabbix externo | `Admin` | `https://zabbix.nature46.uk` |
+| Ubuntu VM | `pablo` | Consola VMware |
 
 ---
 
-## 🐛 Problemas Conocidos y Soluciones
+## 🎓 Conceptos Cubiertos
 
-### Licencia FortiGate eval limitada
-**Problema:** Una licencia eval por cuenta Fortinet.  
-**Solución aplicada:** Segunda cuenta con email diferente + contacto con Fortinet España.
+**Networking y Seguridad**
+- VPN IPsec site-to-site con FortiGate (Phase 1 + Phase 2)
+- Split-tunneling — tráfico selectivo por VPN
+- NAT/PAT en firewalls empresariales
+- Dual-homed hosts con rutas persistentes via hookscript
+- Network bridges virtuales (vmbr0/vmbr1, VMnet2/VMnet8)
 
-### Typo en configuración red LXC (10.1.0.254)
-**Problema:** Gateway mal escrito causó routing incorrecto.  
-**Solución:** Corrección en `/etc/pve/lxc/104.conf` y reinicio del container.
+**Virtualización**
+- KVM/QEMU en Proxmox (VM FortiGate)
+- LXC containers unprivileged (Zabbix Server)
+- VMware Workstation (sede cliente)
+- Hookscripts Proxmox para automatización post-arranque
 
-### FortiGate GUI puerto 443 conflicto con VPN
-**Problema:** IKE TCP y HTTPS usan mismo puerto.  
-**Solución:** Cambiar GUI a puerto 8443 en FortiGate Server.
+**Monitorización**
+- Arquitectura Zabbix Server + Agent a través de VPN
+- Docker Compose orquestación (Zabbix + PostgreSQL + Uptime Kuma)
+- Triggers, actions y notificaciones multi-canal
+- Dashboards MSP profesionales
+- Housekeeping y retención de datos optimizados
 
-Ver [06-Troubleshooting.md](06-Troubleshooting.md) para lista completa.
-
----
-
-## 📈 Próximos Pasos
-
-### Corto plazo
-- [ ] Instalar y configurar Zabbix Agent 2 en Ubuntu cliente
-- [ ] Agregar host en Zabbix Server y verificar métricas
-- [ ] Configurar plantillas para monitorización Linux
-- [ ] Crear triggers y alertas (Telegram/Email)
-
-### Mediano plazo
-- [ ] SNMP monitoring de los propios FortiGates
-- [ ] Zabbix Proxy en red cliente (arquitectura distribuida)
-- [ ] Dashboards tipo MSP profesional
-- [ ] Automatización con Ansible
-
-### Largo plazo
-- [ ] Simular segundo cliente (tercer FortiGate)
-- [ ] VPN hub-and-spoke (ADVPN)
-- [ ] FortiAnalyzer para logs centralizados
-- [ ] Integración con ticketing system
+**Troubleshooting**
+- Diagnóstico de routing en hosts dual-homed
+- Diagnóstico VPN IPsec (`diagnose vpn tunnel list`)
+- Verificación de políticas firewall
+- Resolución de conflictos NetworkManager/networkd en Ubuntu
 
 ---
 
-## 📝 Licencias y Disclaimer
+## 📝 Notas y Limitaciones
 
-- **FortiGate eval:** 1 vCPU, 2GB RAM, funcionalidad completa limitada a 15 días
-- **Zabbix:** GNU GPL v2 (open source)
-- **Proxmox VE:** AGPL v3 (community edition)
-- **Este proyecto:** Uso educativo y no comercial
-
-> ⚠️ **Disclaimer:** Este es un laboratorio educativo. No usar en producción sin las licencias comerciales apropiadas y hardening de seguridad.
+- FortiGate eval: 1 vCPU, 2GB RAM, funcionalidad básica completa
+- Una licencia eval por cuenta Fortinet — segunda instancia funciona sin licencia para VPN básica de laboratorio
+- Zabbix: GNU GPL v2 | Proxmox VE: AGPL v3 | Proyecto: uso educativo no comercial
 
 ---
 
 ## 🙏 Agradecimientos
 
-- **Virtus Informática** — Inspiración del proyecto y oportunidad de prácticas profesionales
-- **Fortinet** — Licencias eval y documentación técnica
-- **Comunidades:** r/Proxmox, r/homelab, r/zabbix, FortiGate NSE forums
+- **Virtus Informática** — inspiración del proyecto y oportunidad de prácticas
+- **Fortinet** — licencias eval y documentación técnica
+- **Comunidades** — r/Proxmox, r/homelab, r/zabbix
 
 ---
-
-## 📞 Contacto
 
 **Proyecto creado por:** Nat  
-**Contexto:** Preparación para prácticas en Virtus Informática (marzo 2025)  
-**Duración desarrollo:** 80 días (roadmap "Hoja de Ruta 80 Días")  
-
----
-
-**🔗 Enlaces rápidos:**
-- [Guía FortiGate Server](01-FortiGate-Server-Setup.md)
-- [Guía FortiGate Cliente](02-FortiGate-Cliente-Setup.md)
-- [Configuración VPN](04-VPN-IPsec-Tunnel.md)
-- [Troubleshooting](06-Troubleshooting.md)
-
----
-
-*Última actualización: Febrero 2026*
+**Contexto:** Preparación para prácticas en Virtus Informática (Castellón)  
+**Última actualización:** Marzo 2026
